@@ -183,6 +183,7 @@ bool CommandPrompt::read_input() {
                 } else if(sequence[0] == '0') {
                     switch(sequence[1]) {
                         case 'H': /* home */
+                            goto_column(m_prompt_len+1);
                         break;
                         case 'F': /* end */
                         break;
