@@ -116,6 +116,7 @@ std::optional<std::string> CommandPrompt::get_input() {
         m_buffer.clear();
         return result;
     } else {
+        m_error = {m_buffer};
         m_buffer.clear();
         return {};
     }
@@ -128,11 +129,11 @@ bool CommandPrompt::read_input() {
         auto chars_read = read(STDIN_FILENO, &ch, 1);
         if(chars_read <= 0) return true; // continue reading if nothing was read.
         if(ch == KeyCode::TAB) {
-            auto res = cb(m_buffer);
+            m_completion_result = m_completion_cb(m_buffer);
             std::string write_buffer{GOTO_COLUMN_N};
             write_buffer.replace(2, 1, std::to_string(m_prompt_len+1));
             write_buffer.append(CLEAR_REST_OF_LINE);
-            auto output = res.value_or(m_buffer);
+            auto output = m_completion_result.value_or(m_buffer);
             write_buffer.append(output);
             write_buffer.append(std::string{GOTO_COLUMN_N}.replace(2, 1, std::to_string(m_prompt_len+1+output.size())));
             write(STDOUT_FILENO, write_buffer.c_str(), write_buffer.size());
@@ -140,9 +141,8 @@ bool CommandPrompt::read_input() {
         switch(ch) {
             case KeyCode::ENTER:
                 std::cout << std::endl;
-                if(cb.has_value())
-                    m_buffer = cb.m_result.value();
-                cb.m_result = {};
+                m_buffer = m_completion_result.value_or(m_buffer);
+                m_completion_result = {};
                 goto_column(0);
             return false;
             case KeyCode::ESC:
@@ -186,8 +186,8 @@ bool CommandPrompt::read_input() {
             case KeyCode::BACKSPACE: {
                 auto current_position = get_data_index();
                 auto cursorpos = get_cursor_pos();
-                m_buffer = cb.m_result.value_or(m_buffer);
-                cb.m_result = {};
+                m_buffer = m_completion_result.value_or(m_buffer);
+                m_completion_result = {};
                 if (current_position >= m_buffer.size() && !m_buffer.empty() && cursorpos > m_prompt_len+1) {
                     m_buffer.pop_back();
                     std::string write_buffer{GOTO_COLUMN_N};
@@ -232,7 +232,6 @@ void CommandPrompt::register_commands(const std::vector<std::string> &v) {
     for(const auto cmd : v) {
         m_commands.emplace_back(cmd);
     }
-    this->cb = CompletionCallback{m_commands};
 }
 
 void CommandPrompt::display_prompt() {
@@ -302,6 +301,18 @@ void CommandPrompt::write_debug_file() {
         debug << "Cursor position: " << s << " data index: " << get_data_index() << '\n';
     }
     debug.close();
+}
+
+void CommandPrompt::register_completion_cb(Completer&& c) {
+    this->m_completion_cb = std::move(c);
+}
+
+std::optional<std::string> CommandPrompt::get_last_input() {
+    return (history.empty() ? std::optional<std::string>{} : history[history.size()-1]);
+}
+
+std::optional<std::string> CommandPrompt::get_error_input() {
+    return this->m_error;
 }
 
 std::optional<std::string> CompletionCallback::operator()(std::string s) {

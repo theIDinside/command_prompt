@@ -39,9 +39,10 @@ enum Error: int {
     OK = 0
 };
 using Validator = std::function<bool(std::string)>;
-using Completer = std::function<std::string(std::string)>;
+using Completer = std::function<std::optional<std::string>(std::string)>;
 
-
+/*  This can be used as a completion callback, instead of using a lambda. I've removed the use of this struct for now though. If you use a lambda with register_completion_cb(...);
+ *  you need to capture variables like for example commands, an index value and the lambda needs to be mutable, in order to store state, from call to call. Example exists in main.cpp*/
 struct CompletionCallback {
     std::string current;
     std::vector<std::string> all_commands;
@@ -82,15 +83,20 @@ public:
     std::optional<std::string> get_input();
     void register_validator(Validator&& v);
     void register_commands(const std::vector<std::string>& v);
+    void register_completion_cb(Completer&& cb);
+
     std::vector<std::string> get_history();
     void print_data(const std::string& data);
     void print_data(const std::vector<std::string>& data);
     template <typename ...Args>
     void print_error(Args&&... msg)  {
         const char delim = ' ';
+        // holy s**t you gotta love variadic templates in c++17 and up! Simple as ABC, easy as 123.
         std::cerr << '\r' << ERROR_COLOR << ((msg + delim) + ...) << "\x1b[m" << '\r' << std::endl;
     }
     void disable_rawmode();
+    std::optional<std::string> get_last_input();
+    std::optional<std::string> get_error_input();
 private: /*         private functions       */
     bool read_input();
     Error set_rawmode();
@@ -108,10 +114,12 @@ private: /*         private members       */
     const usize m_prompt_len;
     std::string m_buffer;
     std::vector<std::string> m_commands;
+    std::optional<std::string> m_error{};
     /* for when trying to auto complete with tab*/
     // history
     std::vector<std::string> history;
     bool m_raw_mode_set;
+    std::optional<std::string> m_completion_result{};
     Validator m_validator;
-    CompletionCallback cb;
+    Completer m_completion_cb;
 };
