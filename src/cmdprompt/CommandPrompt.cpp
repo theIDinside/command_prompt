@@ -94,7 +94,9 @@ void CommandPrompt::goto_column(CommandPrompt::usize n) {
 
 CommandPrompt::CommandPrompt(std::string &&prompt, bool keep_history=false) :
                         m_prompt(prompt), m_prompt_len(prompt.size()),
-                        m_buffer{}, m_raw_mode_set(false), m_save_history(keep_history)
+                        m_buffer{}, m_history_item{},
+                        m_raw_mode_set(false), m_save_history(keep_history)
+
 {
     set_rawmode();
     char _p[m_prompt_len];
@@ -128,6 +130,15 @@ std::optional<std::string> CommandPrompt::get_input() {
     }
 }
 
+void CommandPrompt::auto_fill() {
+    std::string write_buffer{GOTO_COLUMN_N};
+    write_buffer.replace(2, 1, std::to_string(m_prompt_len+1));
+    write_buffer.append(CLEAR_REST_OF_LINE);
+    auto output = m_completion_result.value_or(m_buffer);
+    write_buffer.append(output);
+    write_buffer.append(std::string{GOTO_COLUMN_N}.replace(2, 1, std::to_string(m_prompt_len+1+output.size())));
+    write(STDOUT_FILENO, write_buffer.c_str(), write_buffer.size());
+}
 
 bool CommandPrompt::read_input() {
         char sequence[3]; // CTRL + A for example, is a 3 byte char seq
@@ -136,13 +147,7 @@ bool CommandPrompt::read_input() {
         if(chars_read <= 0) return true; // continue reading if nothing was read.
         if(ch == KeyCode::TAB) {
             m_completion_result = m_completion_cb(m_buffer);
-            std::string write_buffer{GOTO_COLUMN_N};
-            write_buffer.replace(2, 1, std::to_string(m_prompt_len+1));
-            write_buffer.append(CLEAR_REST_OF_LINE);
-            auto output = m_completion_result.value_or(m_buffer);
-            write_buffer.append(output);
-            write_buffer.append(std::string{GOTO_COLUMN_N}.replace(2, 1, std::to_string(m_prompt_len+1+output.size())));
-            write(STDOUT_FILENO, write_buffer.c_str(), write_buffer.size());
+            auto_fill();
         }
         switch(ch) {
             case KeyCode::ENTER:
@@ -160,6 +165,8 @@ bool CommandPrompt::read_input() {
                   } else {
                       switch(sequence[1]) {
                           case 'A': // todo: scroll up through history list.-
+                              m_completion_result = get_history_prev();
+                              auto_fill();
                           break;
                           case 'B': // todo: scroll down through history list.-
                           write_debug_file();
@@ -186,6 +193,7 @@ bool CommandPrompt::read_input() {
                             goto_column(m_prompt_len+1);
                         break;
                         case 'F': /* end */
+                            goto_column(m_prompt_len+1+m_buffer.size());
                         break;
                     }
                 }
@@ -359,6 +367,44 @@ void CommandPrompt::write_history_to_file() {
     }
     f << "------------------" << '\n';
     f.close();
+}
+
+std::optional<std::string> CommandPrompt::get_history_prev() {
+    if(history.empty())
+    {
+        m_history_item = {};
+        return {};
+    }
+    else {
+        m_history_item = m_history_item.value_or(history.rbegin());
+        if(m_history_item.value() != history.rend()) {
+            auto res = std::optional<std::string>{*m_history_item.value()};
+            (m_history_item.value())++;
+            return res;
+        } else {
+            m_history_item = {};
+            return {};
+        }
+    }
+}
+
+std::optional<std::string> CommandPrompt::get_history_next() {
+    if(history.empty())
+    {
+        m_history_item = {};
+        return {};
+    }
+    else {
+        m_history_item = m_history_item.value_or(history.rbegin());
+        if(m_history_item.value() != history.rbegin()) { // if we are at the latest history item, "next" should produce nothing.
+            auto res = std::optional<std::string>{*m_history_item.value()};
+            (m_history_item.value())--;
+            return res;
+        } else {
+            m_history_item = {};
+            return {};
+        }
+    }
 }
 
 std::optional<std::string> CompletionCallback::operator()(std::string s) {

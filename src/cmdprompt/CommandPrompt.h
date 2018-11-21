@@ -108,6 +108,10 @@ public:
     void disable_rawmode();
     std::optional<std::string> get_last_input();
     std::optional<std::string> get_error_input();
+
+    std::optional<std::string> get_history_prev();
+    std::optional<std::string> get_history_next();
+
 private: /*         private functions       */
     bool read_input();
     Error set_rawmode();
@@ -120,6 +124,7 @@ private: /*         private functions       */
     usize get_data_index();
     void write_debug_file();
     void write_history_to_file();
+    void auto_fill();
 private: /*         private members       */
     const std::string m_prompt;
     const usize m_prompt_len;
@@ -129,6 +134,9 @@ private: /*         private members       */
     /* for when trying to auto complete with tab*/
     // history
     std::vector<std::string> history;
+    std::optional<usize> m_history_index = 0;
+    std::optional<std::vector<std::string>::reverse_iterator> m_history_item;
+
     std::string history_file_path;
     bool m_raw_mode_set;
     bool m_save_history;
