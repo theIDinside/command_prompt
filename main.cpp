@@ -12,6 +12,9 @@ int main() {
     }
     std::vector<std::string> history{};
     {
+        using Strvec = std::vector<std::string>;
+        using Result = std::optional<std::string>;
+        using String = std::string;
         /* either put a scope around the CommandPrompt object, or call cmdprompt.disable_rawmode(), to restore terminal.
            Destructor of CommandPrompt calls disable_rawmode(). It's a matter of taste how you do it. */
         CommandPrompt cmdprompt{"test> "};
@@ -19,33 +22,35 @@ int main() {
             return std::any_of(cms.begin(), cms.end(), [&](auto cmd) { return cmd == input; });
         });
         cmdprompt.register_commands(commands);
-        cmdprompt.register_completion_cb([cms = commands, results=std::vector<std::string>{}, index = 0, current=std::string{""}, result = std::optional<std::string>{}](auto str) mutable -> std::optional<std::string> {
-            if(current == str) {
+        cmdprompt.register_completion_cb([cms = commands, res=Strvec{}, idx = 0, cur=String{""}, result = Result{}](String str) mutable -> std::optional<std::string> {
+            if(cur == str) {
                 // continue scrolling through commands
                 // using current_index
-                if(index < results.size()) {
-                    auto res = results[index];
-                    index++;
-                    return (result = res);
+                if(idx < res.size()) {
+                    result = res[idx];
+                    idx++;
+                    return result;
                 } else {
-                    index = 0;
-                    return (result = {});
+                    result = {};
+                    idx = 0;
+                    return result;
                 }
             } else {
-                current = str;
-                index = 0;
-                results.clear();
-                // copies all results that begin with str, from cms vector to results vector, so these can be scrolled through.
+                cur = str;
+                idx = 0;
+                res.clear();
+                // copies all res that begin with str, from cms vector to res vector, so these can be scrolled through.
                 auto b = cms.cbegin();
                 auto e = cms.cend();
-                std::copy_if(b, e, std::back_inserter(results), [&](auto s) { return std::equal(str.begin(), str.end(), s.begin()); });
-                if(!results.empty() && index < results.size()) {
-                    auto res = results[index];
-                    index++;
-                    return (result = res);
+                std::copy_if(b, e, std::back_inserter(res), [&](auto s) { return std::equal(str.begin(), str.end(), s.begin()); });
+                if(!res.empty() && idx < res.size()) {
+                    result = res[idx];
+                    idx++;
+                    return result;
                 } else {
-                    index = 0;
-                    return (result = {});
+                    idx = 0;
+                    result = {};
+                    return result;
                 }
             }
         });
