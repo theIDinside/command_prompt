@@ -74,9 +74,11 @@ class CommandPrompt {
 public:
     using usize = std::size_t;
     CommandPrompt() = delete;
-    explicit CommandPrompt(std::string&& prompt);
+    explicit CommandPrompt(std::string&& prompt, bool keep_history);
     ~CommandPrompt() {
         disable_rawmode();
+        if(m_save_history)
+            write_history_to_file();
     }
     void clear_line();                      // not yet in use
     void clear_input_from(usize n=0);       // not yet in use
@@ -84,10 +86,11 @@ public:
     void register_validator(Validator&& v);
     void register_commands(const std::vector<std::string>& v);
     void register_completion_cb(Completer&& cb);
-
+    void set_save_history(std::string history_file_path);
     std::vector<std::string> get_history();
     void print_data(const std::string& data);
     void print_data(const std::vector<std::string>& data);
+    void load_history(std::string history_file);
     template <typename ...Args>
     void print_error(Args&&... msg)  {
         const char delim = ' ';
@@ -108,7 +111,7 @@ private: /*         private functions       */
     usize get_cursor_pos();
     usize get_data_index();
     void write_debug_file();
-
+    void write_history_to_file();
 private: /*         private members       */
     const std::string m_prompt;
     const usize m_prompt_len;
@@ -118,7 +121,9 @@ private: /*         private members       */
     /* for when trying to auto complete with tab*/
     // history
     std::vector<std::string> history;
+    std::string history_file_path;
     bool m_raw_mode_set;
+    bool m_save_history;
     std::optional<std::string> m_completion_result{};
     Validator m_validator;
     Completer m_completion_cb;

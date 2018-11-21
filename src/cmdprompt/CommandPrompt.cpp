@@ -92,14 +92,16 @@ void CommandPrompt::goto_column(CommandPrompt::usize n) {
 }
 
 
-CommandPrompt::CommandPrompt(std::string &&prompt) :
+CommandPrompt::CommandPrompt(std::string &&prompt, bool keep_history=false) :
                         m_prompt(prompt), m_prompt_len(prompt.size()),
-                        m_buffer{}, m_raw_mode_set(false)
+                        m_buffer{}, m_raw_mode_set(false), m_save_history(keep_history)
 {
     set_rawmode();
     char _p[m_prompt_len];
     std::string s{m_prompt};
     write(STDOUT_FILENO, s.c_str(), s.size());
+    if(keep_history)
+        set_save_history("./history.log");
 }
 
 void CommandPrompt::register_validator(Validator&& v) {
@@ -313,6 +315,49 @@ std::optional<std::string> CommandPrompt::get_last_input() {
 
 std::optional<std::string> CommandPrompt::get_error_input() {
     return this->m_error;
+}
+
+void CommandPrompt::set_save_history(std::string history_file_path) {
+    this->history_file_path = std::move(history_file_path);
+    this->m_save_history = true;
+}
+
+void CommandPrompt::load_history(std::string history_file_path) {
+    this->history_file_path = history_file_path;
+    std::fstream history_file{};
+    history_file.open(history_file_path.c_str(), std::ios::in);
+    std::string line{""};
+    auto _hist = std::vector<std::string>{};
+    while(std::getline(history_file, line)) {
+        if(m_validator(line))
+            _hist.emplace_back(line);
+    }
+    // only keep 200 records of commands entered
+    auto i = _hist.begin();
+    auto e = _hist.end();
+    if(_hist.size() > 200) {
+        auto a = _hist.size() - 200;
+        for(auto j = 0; j < a; ++j){++i;};
+    }
+    std::copy(i, _hist.end(), history.begin());
+}
+
+void CommandPrompt::write_history_to_file() {
+    std::ofstream f{history_file_path.c_str()};
+    std::vector<std::string> fv{};
+    if(history.size() > 200) {
+        auto i = history.begin();
+        auto a = history.size() - 200;
+        for(auto j = 0; j < a; ++j){++i;};
+        std::copy(i, history.end(), std::back_inserter(fv));
+    } else {
+        std::copy(history.begin(), history.end(), std::back_inserter(fv));
+    }
+    for(const auto& h : fv) {
+        f << h << '\n';
+    }
+    f << "------------------" << '\n';
+    f.close();
 }
 
 std::optional<std::string> CompletionCallback::operator()(std::string s) {
