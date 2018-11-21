@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.10)
+project(command_prompt)
+set(SOURCES main.cpp src/cmdprompt/CommandPrompt.cpp src/cmdprompt/CommandPrompt.h)
+set(CMAKE_CXX_STANDARD 17)
+add_executable(command_prompt ${SOURCES})
