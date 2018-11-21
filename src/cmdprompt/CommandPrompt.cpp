@@ -159,9 +159,9 @@ bool CommandPrompt::read_input() {
 
                   } else {
                       switch(sequence[1]) {
-                          case 'A': // up
+                          case 'A': // todo: scroll up through history list
                           break;
-                          case 'B': // down
+                          case 'B': // todo: scroll down through history list
                           write_debug_file();
                           break;
                           case 'C': // right
