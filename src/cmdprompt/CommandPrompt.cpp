@@ -113,12 +113,16 @@ std::optional<std::string> CommandPrompt::get_input() {
     display_prompt();
     while(read_input()) {}
     if(m_validator(m_buffer)) {
+        if(m_buffer.empty())
+        {
+            return {};
+        }
         history.emplace_back(m_buffer);
         std::copy(m_buffer.begin(), m_buffer.end(), std::back_inserter(result));
         m_buffer.clear();
         return result;
     } else {
-        m_error = {m_buffer};
+        m_error = m_buffer;
         m_buffer.clear();
         return {};
     }
@@ -246,10 +250,6 @@ void CommandPrompt::display_prompt() {
 
 std::vector<std::string> CommandPrompt::get_history() {
     return history;
-}
-
-void CommandPrompt::print_data(const std::string &data) {
-    std::cout << data << '\n' << '\r';
 }
 
 void CommandPrompt::print_data(const std::vector<std::string> &data) {

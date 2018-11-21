@@ -1,5 +1,5 @@
 #include <iostream>
-#include "src/cmdprompt/CommandPrompt.h"
+#include "../src/cmdprompt/CommandPrompt.h"
 #include <algorithm>
 
 int main() {
@@ -15,7 +15,7 @@ int main() {
         using Strvec = std::vector<std::string>;
         using Result = std::optional<std::string>;
         using String = std::string;
-        auto save_history = true;
+        auto save_history = false;
         /* either put a scope around the CommandPrompt object, or call cmdprompt.disable_rawmode(), to restore terminal.
            Destructor of CommandPrompt calls disable_rawmode(). It's a matter of taste how you do it. */
         CommandPrompt cmdprompt{"test> ", save_history};
@@ -23,7 +23,7 @@ int main() {
             return std::any_of(cms.begin(), cms.end(), [&](auto cmd) { return cmd == input; });
         });
         cmdprompt.register_commands(commands);
-        cmdprompt.load_history("./history.log"); // THIS MUST ONLY BE CALLED AFTER A VALIDATOR HAS BEEN REGISTERED, SO THAT NO NON-VALID COMMANDS GET LOADED FROM HISTORY FILE
+        // cmdprompt.load_history("./history.log"); // THIS MUST ONLY BE CALLED AFTER A VALIDATOR HAS BEEN REGISTERED, SO THAT NO NON-VALID COMMANDS GET LOADED FROM HISTORY FILE
         cmdprompt.register_completion_cb([cms = commands, res=Strvec{}, idx = 0, cur=String{""}, result = Result{}](String str) mutable -> std::optional<std::string> {
             if(cur == str) {
                 // continue scrolling through commands

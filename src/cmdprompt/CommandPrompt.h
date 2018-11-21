@@ -74,6 +74,7 @@ class CommandPrompt {
 public:
     using usize = std::size_t;
     CommandPrompt() = delete;
+    CommandPrompt(const CommandPrompt& prompt) : CommandPrompt(std::string{prompt.m_prompt}, prompt.m_save_history) {}
     explicit CommandPrompt(std::string&& prompt, bool keep_history);
     ~CommandPrompt() {
         disable_rawmode();
@@ -87,8 +88,15 @@ public:
     void register_commands(const std::vector<std::string>& v);
     void register_completion_cb(Completer&& cb);
     void set_save_history(std::string history_file_path);
+    void unset_save_history() {
+        m_save_history = false;
+    }
     std::vector<std::string> get_history();
-    void print_data(const std::string& data);
+    template <typename ...Args>
+    void print_data(Args&&... data) {
+        const char delimiter = ' ';
+        std::cout << '\r' << "" << (data << ...) << "" << std::endl;
+    }
     void print_data(const std::vector<std::string>& data);
     void load_history(std::string history_file);
     template <typename ...Args>
