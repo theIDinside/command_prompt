@@ -15,17 +15,30 @@
 #include "CommandPrompt.h"
 #include <algorithm>
 
-struct termios* CommandPrompt::original_term_settings = new struct termios;
-struct winsize* CommandPrompt::ws = new struct winsize;
+struct termios* CommandPrompt::g_original_term_settings = new struct termios;
+struct winsize* CommandPrompt::g_ws = new struct winsize;
+
+CommandPrompt::CommandPrompt(std::string &&prompt, bool keep_history=false) :
+                        m_prompt(prompt), m_prompt_len(prompt.size()),
+                        m_buffer{}, m_error{}, m_history{}, m_history_item{},
+                        m_raw_mode_set(false), m_save_history(keep_history), m_completion_result{}
+
+{
+    set_rawmode();
+    std::string s{m_prompt};
+    m_buffer.reserve(40); // arbitrary reserved size.
+    write(STDOUT_FILENO, s.c_str(), s.size());
+    if(keep_history)
+        set_save_history("./history.log");
+}
 
 Error CommandPrompt::set_rawmode() {
-    if(tcgetattr(STDIN_FILENO, this->original_term_settings) != Error::Err);
-    struct termios raw_mode = *(this->original_term_settings);
+    if(tcgetattr(STDIN_FILENO, CommandPrompt::g_original_term_settings) != Error::Err);
+    struct termios raw_mode = *(CommandPrompt::g_original_term_settings);
     /*
      * We are using boolean operations of AND and flipping the bits of provided values. So ~ICRNL means, DON'T use new line or carriage return
      * since we are AND'ing those flipped bits with the raw_mode.c_iflag value.
      */
-
     raw_mode.c_iflag &= ~(BRKINT|ICRNL|INPCK|ISTRIP|IXON);
     raw_mode.c_oflag &= ~(OPOST); // disables post processing
     raw_mode.c_cflag |= CS8;
@@ -44,13 +57,13 @@ Error CommandPrompt::set_rawmode() {
 
 void CommandPrompt::disable_rawmode() {
     if(m_raw_mode_set) {
-        tcsetattr(STDIN_FILENO, TCSAFLUSH, original_term_settings);
+        tcsetattr(STDIN_FILENO, TCSAFLUSH, g_original_term_settings);
     }
 }
 
 auto CommandPrompt::get_columns() {
-    ioctl(1, TIOCGWINSZ, ws);
-    return ws->ws_col;
+    ioctl(1, TIOCGWINSZ, g_ws);
+    return g_ws->ws_col;
 }
 
 void CommandPrompt::step_n_forward(CommandPrompt::usize n)  { // n is default 1 step
@@ -92,19 +105,6 @@ void CommandPrompt::goto_column(CommandPrompt::usize n) {
 }
 
 
-CommandPrompt::CommandPrompt(std::string &&prompt, bool keep_history=false) :
-                        m_prompt(prompt), m_prompt_len(prompt.size()),
-                        m_buffer{}, m_history_item{},
-                        m_raw_mode_set(false), m_save_history(keep_history)
-
-{
-    set_rawmode();
-    char _p[m_prompt_len];
-    std::string s{m_prompt};
-    write(STDOUT_FILENO, s.c_str(), s.size());
-    if(keep_history)
-        set_save_history("./history.log");
-}
 
 void CommandPrompt::register_validator(Validator&& v) {
     this->m_validator = std::move(v);
@@ -119,7 +119,7 @@ std::optional<std::string> CommandPrompt::get_input() {
         {
             return {};
         }
-        history.emplace_back(m_buffer);
+        m_history.emplace_back(m_buffer);
         std::copy(m_buffer.begin(), m_buffer.end(), std::back_inserter(result));
         m_buffer.clear();
         return result;
@@ -258,7 +258,7 @@ void CommandPrompt::display_prompt() {
 }
 
 std::vector<std::string> CommandPrompt::get_history() {
-    return history;
+    return m_history;
 }
 
 void CommandPrompt::print_data(const std::vector<std::string> &data) {
@@ -319,7 +319,7 @@ void CommandPrompt::register_completion_cb(Completer&& c) {
 }
 
 std::optional<std::string> CommandPrompt::get_last_input() {
-    return (history.empty() ? std::optional<std::string>{} : history[history.size()-1]);
+    return (m_history.empty() ? std::optional<std::string>{} : m_history[m_history.size()-1]);
 }
 
 std::optional<std::string> CommandPrompt::get_error_input() {
@@ -348,19 +348,19 @@ void CommandPrompt::load_history(std::string history_file_path) {
         auto a = _hist.size() - 200;
         for(auto j = 0; j < a; ++j){++i;};
     }
-    std::copy(i, _hist.end(), history.begin());
+    std::copy(i, _hist.end(), m_history.begin());
 }
 
 void CommandPrompt::write_history_to_file() {
     std::ofstream f{history_file_path.c_str()};
     std::vector<std::string> fv{};
-    if(history.size() > 200) {
-        auto i = history.begin();
-        auto a = history.size() - 200;
+    if(m_history.size() > 200) {
+        auto i = m_history.begin();
+        auto a = m_history.size() - 200;
         for(auto j = 0; j < a; ++j){++i;};
-        std::copy(i, history.end(), std::back_inserter(fv));
+        std::copy(i, m_history.end(), std::back_inserter(fv));
     } else {
-        std::copy(history.begin(), history.end(), std::back_inserter(fv));
+        std::copy(m_history.begin(), m_history.end(), std::back_inserter(fv));
     }
     for(const auto& h : fv) {
         f << h << '\n';
@@ -370,14 +370,14 @@ void CommandPrompt::write_history_to_file() {
 }
 
 std::optional<std::string> CommandPrompt::get_history_prev() {
-    if(history.empty())
+    if(m_history.empty())
     {
         m_history_item = {};
         return {};
     }
     else {
-        m_history_item = m_history_item.value_or(history.rbegin());
-        if(m_history_item.value() != history.rend()) {
+        m_history_item = m_history_item.value_or(m_history.rbegin());
+        if(m_history_item.value() != m_history.rend()) {
             auto res = std::optional<std::string>{*m_history_item.value()};
             (m_history_item.value())++;
             return res;
@@ -389,14 +389,14 @@ std::optional<std::string> CommandPrompt::get_history_prev() {
 }
 
 std::optional<std::string> CommandPrompt::get_history_next() {
-    if(history.empty())
+    if(m_history.empty())
     {
         m_history_item = {};
         return {};
     }
     else {
-        m_history_item = m_history_item.value_or(history.rbegin());
-        if(m_history_item.value() != history.rbegin()) { // if we are at the latest history item, "next" should produce nothing.
+        m_history_item = m_history_item.value_or(m_history.rbegin());
+        if(m_history_item.value() != m_history.rbegin()) { // if we are at the latest history item, "next" should produce nothing.
             auto res = std::optional<std::string>{*m_history_item.value()};
             (m_history_item.value())--;
             return res;

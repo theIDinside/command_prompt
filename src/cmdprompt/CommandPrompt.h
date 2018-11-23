@@ -69,8 +69,8 @@ class CommandPrompt {
     static constexpr const char* MOVE_BACKWARD_N = "\x1b[ND";
     static constexpr const char* GOTO_COLUMN_N = "\x1b[NG";
     static constexpr const char* ERROR_COLOR = "\x1b[38;5;9m"; // use case: "\x1b[38;5;9m some message colored red\x1b[m"
-    static struct termios* original_term_settings;
-    static struct winsize* ws;
+    static struct termios* g_original_term_settings;
+    static struct winsize* g_ws;
 public:
     using usize = std::size_t;
     CommandPrompt() = delete;
@@ -80,6 +80,8 @@ public:
         disable_rawmode();
         if(m_save_history)
             write_history_to_file();
+        delete g_original_term_settings;
+        delete g_ws;
     }
     void clear_line();                      // not yet in use
     void clear_input_from(usize n=0);       // not yet in use
@@ -95,7 +97,8 @@ public:
     template <typename ...Args>
     void print_data(Args&&... data) {
         const char delimiter = ' ';
-        std::cout << '\r' << "" << (data << ...) << "" << std::endl;
+        std::cout << '\r';
+        (std::cout << ... << data)  << std::endl;
     }
     void print_data(const std::vector<std::string>& data);
     void load_history(std::string history_file);
@@ -103,7 +106,8 @@ public:
     void print_error(Args&&... msg)  {
         const char delim = ' ';
         // holy s**t you gotta love variadic templates in c++17 and up! Simple as ABC, easy as 123.
-        std::cerr << '\r' << ERROR_COLOR << ((msg + delim) + ...) << "\x1b[m" << '\r' << std::endl;
+        std::cerr << '\r' << ERROR_COLOR;
+        (std::cerr << ... << (msg + delim)) << "\x1b[m" << '\r' << std::endl;
     }
     void disable_rawmode();
     std::optional<std::string> get_last_input();
@@ -130,17 +134,16 @@ private: /*         private members       */
     const usize m_prompt_len;
     std::string m_buffer;
     std::vector<std::string> m_commands;
-    std::optional<std::string> m_error{};
+    std::optional<std::string> m_error;
     /* for when trying to auto complete with tab*/
     // history
-    std::vector<std::string> history;
-    std::optional<usize> m_history_index = 0;
+    std::vector<std::string> m_history;
     std::optional<std::vector<std::string>::reverse_iterator> m_history_item;
 
     std::string history_file_path;
     bool m_raw_mode_set;
     bool m_save_history;
-    std::optional<std::string> m_completion_result{};
+    std::optional<std::string> m_completion_result;
     Validator m_validator;
     Completer m_completion_cb;
 };
