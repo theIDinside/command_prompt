@@ -107,7 +107,7 @@ public:
         const char delim = ' ';
         // holy s**t you gotta love variadic templates in c++17 and up! Simple as ABC, easy as 123.
         std::cerr << '\r' << ERROR_COLOR;
-        (std::cerr << ... << (msg + delim)) << "\x1b[m" << '\r' << std::endl;
+        (std::cerr << ... << (msg + delim)) << "\x1b[39m" << '\r' << std::endl;
     }
     void disable_rawmode();
     std::optional<std::string> get_last_input();

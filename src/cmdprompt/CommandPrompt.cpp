@@ -141,105 +141,105 @@ void CommandPrompt::auto_fill() {
 }
 
 bool CommandPrompt::read_input() {
-        char sequence[3]; // CTRL + A for example, is a 3 byte char seq
-        char ch;
-        auto chars_read = read(STDIN_FILENO, &ch, 1);
-        if(chars_read <= 0) return true; // continue reading if nothing was read.
-        if(ch == KeyCode::TAB) {
-            m_completion_result = m_completion_cb(m_buffer);
-            auto_fill();
-        }
-        switch(ch) {
-            case KeyCode::ENTER:
-                std::cout << std::endl;
-                m_buffer = m_completion_result.value_or(m_buffer);
-                m_completion_result = {};
-                goto_column(0);
+    char sequence[3]; // CTRL + A for example, is a 3 byte char seq
+    char ch;
+    auto chars_read = read(STDIN_FILENO, &ch, 1);
+    if (chars_read <= 0) return true; // continue reading if nothing was read.
+    if (ch == KeyCode::TAB) {
+        m_completion_result = m_completion_cb(m_buffer);
+        auto_fill();
+    }
+    switch (ch) {
+        case KeyCode::ENTER:
+            std::cout << std::endl;
+            m_buffer = m_completion_result.value_or(m_buffer);
+            m_completion_result = {};
+            goto_column(0);
             return false;
-            case KeyCode::ESC:
-                if(read(STDIN_FILENO, sequence, 1) == -1) break;
-                if(read(STDIN_FILENO, sequence+1, 1) == -1) break;
-                if(sequence[0] == '[') {
-                  if(sequence[1] >= '0' && sequence[1] <= '9') {
+        case KeyCode::ESC:
+            if (read(STDIN_FILENO, sequence, 1) == -1) break;
+            if (read(STDIN_FILENO, sequence + 1, 1) == -1) break;
+            if (sequence[0] == '[') {
+                if (sequence[1] >= '0' && sequence[1] <= '9') {
 
-                  } else {
-                      switch(sequence[1]) {
-                          case 'A': // todo: scroll up through history list.-
-                              m_completion_result = get_history_prev();
-                              auto_fill();
-                          break;
-                          case 'B': // todo: scroll down through history list.-
-                          write_debug_file();
-                          break;
-                          case 'C': // right
-                          step_n_forward();
-                          break;
-                          case 'D': // left
-                          step_n_backward();
-                          break;
-                          case 'H': // home key
-                            goto_column(m_prompt_len+1);
-                          break;
-                          case 'F': // end key
-                            goto_column(m_prompt_len+1+m_buffer.size());
-                          break;
-                          default:
-                              break;
-                      }
-                  }
-                } else if(sequence[0] == '0') {
-                    switch(sequence[1]) {
-                        case 'H': /* home */
-                            goto_column(m_prompt_len+1);
-                        break;
-                        case 'F': /* end */
-                            goto_column(m_prompt_len+1+m_buffer.size());
-                        break;
+                } else {
+                    switch (sequence[1]) {
+                        case 'A': // todo: scroll up through history list.-
+                            m_completion_result = get_history_prev();
+                            auto_fill();
+                            break;
+                        case 'B': // todo: scroll down through history list.-
+                            write_debug_file();
+                            break;
+                        case 'C': // right
+                            step_n_forward();
+                            break;
+                        case 'D': // left
+                            step_n_backward();
+                            break;
+                        case 'H': // home key
+                            goto_column(m_prompt_len + 1);
+                            break;
+                        case 'F': // end key
+                            goto_column(m_prompt_len + 1 + m_buffer.size());
+                            break;
+                        default:
+                            break;
                     }
                 }
-            break;
-            case KeyCode::BACKSPACE: {
-                auto current_position = get_data_index();
-                auto cursorpos = get_cursor_pos();
-                m_buffer = m_completion_result.value_or(m_buffer);
-                m_completion_result = {};
-                if (current_position >= m_buffer.size() && !m_buffer.empty() && cursorpos > m_prompt_len+1) {
-                    m_buffer.pop_back();
-                    std::string write_buffer{GOTO_COLUMN_N};
-                    write_buffer.replace(2, 1, std::to_string(cursorpos-1));
-                    write_buffer.append(CLEAR_REST_OF_LINE);
-                    write(STDOUT_FILENO, write_buffer.c_str(), write_buffer.size());
-                } else if (!m_buffer.empty() && current_position < m_buffer.size()+1 && current_position != 0 && cursorpos > m_prompt_len+1) {
-                    m_buffer.erase(current_position, 1);
-                    std::string write_buffer{GOTO_COLUMN_N};
-                    write_buffer.replace(2, 1, std::to_string(m_prompt_len+1));
-                    write_buffer.append(CLEAR_REST_OF_LINE);
-                    write_buffer.append(m_buffer);
-                    write_buffer.append(std::string{GOTO_COLUMN_N}.replace(2,1, std::to_string(cursorpos-1)));
-                    write(STDOUT_FILENO, write_buffer.c_str(), write_buffer.size());
+            } else if (sequence[0] == '0') {
+                switch (sequence[1]) {
+                    case 'H': /* home */
+                        goto_column(m_prompt_len + 1);
+                        break;
+                    case 'F': /* end */
+                        goto_column(m_prompt_len + 1 + m_buffer.size());
+                        break;
                 }
-                break;
             }
-            default:
-                // enter character into character buffer m_buffer
-                auto current_pos = get_data_index();
-                if(ch == KeyCode::TAB) break;
-                if(current_pos == m_buffer.size()) {
-                    m_buffer.push_back(ch);
-                    write(STDOUT_FILENO, &ch, 1);
-                }
-                else if(current_pos < m_buffer.size()) {
-                    auto cursor = get_cursor_pos();
-                    std::string write_buffer{GOTO_COLUMN_N};
-                    write_buffer.replace(2, 1, std::to_string(m_prompt_len+1));
-                    m_buffer.insert(current_pos, 1, ch);
-                    write_buffer.append(m_buffer);
-                    write_buffer.append(std::string{GOTO_COLUMN_N}.replace(2, 1, std::to_string(cursor+1)));
-                    write(STDOUT_FILENO, write_buffer.c_str(), write_buffer.size());
-                }
-                return true;
+            break;
+        case KeyCode::BACKSPACE: {
+            auto current_position = get_data_index();
+            auto cursorpos = get_cursor_pos();
+            m_buffer = m_completion_result.value_or(m_buffer);
+            m_completion_result = {};
+            if (current_position >= m_buffer.size() && !m_buffer.empty() && cursorpos > m_prompt_len + 1) {
+                m_buffer.pop_back();
+                std::string write_buffer{GOTO_COLUMN_N};
+                write_buffer.replace(2, 1, std::to_string(cursorpos - 1));
+                write_buffer.append(CLEAR_REST_OF_LINE);
+                write(STDOUT_FILENO, write_buffer.c_str(), write_buffer.size());
+            } else if (!m_buffer.empty() && current_position < m_buffer.size() + 1 && current_position != 0 &&
+                       cursorpos > m_prompt_len + 1) {
+                m_buffer.erase(current_position, 1);
+                std::string write_buffer{GOTO_COLUMN_N};
+                write_buffer.replace(2, 1, std::to_string(m_prompt_len + 1));
+                write_buffer.append(CLEAR_REST_OF_LINE);
+                write_buffer.append(m_buffer);
+                write_buffer.append(std::string{GOTO_COLUMN_N}.replace(2, 1, std::to_string(cursorpos - 1)));
+                write(STDOUT_FILENO, write_buffer.c_str(), write_buffer.size());
+            }
+            return true;
         }
-    // finally, if we haven't entered a control sequence, push the character onto m_buffer;
+        default:
+            // enter character into character buffer m_buffer
+            auto current_pos = get_data_index();
+            if (ch == KeyCode::TAB) break;
+            if (current_pos == m_buffer.size()) {
+                m_buffer.push_back(ch);
+                write(STDOUT_FILENO, &ch, 1);
+            } else if (current_pos < m_buffer.size()) {
+                auto cursor = get_cursor_pos();
+                std::string write_buffer{GOTO_COLUMN_N};
+                write_buffer.replace(2, 1, std::to_string(m_prompt_len + 1));
+                m_buffer.insert(current_pos, 1, ch);
+                write_buffer.append(m_buffer);
+                write_buffer.append(std::string{GOTO_COLUMN_N}.replace(2, 1, std::to_string(cursor + 1)));
+                write(STDOUT_FILENO, write_buffer.c_str(), write_buffer.size());
+            }
+            return true;
+        }
+        // finally, if we haven't entered a control sequence, push the character onto m_buffer;
     return true;
 }
 
