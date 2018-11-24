@@ -195,6 +195,7 @@ bool CommandPrompt::read_input() {
                     case 'F': /* end */
                         goto_column(m_prompt_len + 1 + m_buffer.size());
                         break;
+                    default:break;
                 }
             }
             break;
@@ -223,6 +224,8 @@ bool CommandPrompt::read_input() {
         }
         default:
             // enter character into character buffer m_buffer
+            m_buffer = m_completion_result.value_or(m_buffer);
+            m_completion_result = {};
             auto current_pos = get_data_index();
             if (ch == KeyCode::TAB) break;
             if (current_pos == m_buffer.size()) {
@@ -244,7 +247,7 @@ bool CommandPrompt::read_input() {
 }
 
 void CommandPrompt::register_commands(const std::vector<std::string> &v) {
-    for(const auto cmd : v) {
+    for(const auto &cmd : v) {
         m_commands.emplace_back(cmd);
     }
 }
@@ -280,7 +283,7 @@ CommandPrompt::usize CommandPrompt::get_cursor_pos() {
         std::copy_if(cursor_data+2, cursor_data+12, std::back_inserter(s), [&](const auto c) {
             return c != '\0';
         });
-        s = s.substr(s.find_first_of(";")+1, s.find_first_of("R"));
+        s = s.substr(s.find_first_of(';')+1, s.find_first_of('R'));
         usize pos = 0;
         std::stringstream ss{s};
         ss >> pos;
@@ -288,11 +291,9 @@ CommandPrompt::usize CommandPrompt::get_cursor_pos() {
     }
     return m_prompt_len+1;
 }
-
 CommandPrompt::usize CommandPrompt::get_data_index() {
      return get_cursor_pos()-(m_prompt_len+1);
 }
-
 void CommandPrompt::write_debug_file() {
     std::ofstream debug{"./debug.txt", std::ios::app};
     char cursor_data[12];
@@ -308,7 +309,7 @@ void CommandPrompt::write_debug_file() {
         std::copy_if(cursor_data+2, cursor_data+12, std::back_inserter(s), [&](const auto c) {
             return c != '\0';
         });
-        s = s.substr(s.find_first_of(";")+1, s.find_first_of("R"));
+        s = s.substr(s.find_first_of(';')+1, s.find_first_of('R'));
         debug << "Cursor position: " << s << " data index: " << get_data_index() << '\n';
     }
     debug.close();
@@ -335,7 +336,7 @@ void CommandPrompt::load_history(std::string history_file_path) {
     this->history_file_path = history_file_path;
     std::fstream history_file{};
     history_file.open(history_file_path.c_str(), std::ios::in);
-    std::string line{""};
+    std::string line;
     auto _hist = std::vector<std::string>{};
     while(std::getline(history_file, line)) {
         if(m_validator(line))

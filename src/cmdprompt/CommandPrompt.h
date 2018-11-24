@@ -98,7 +98,7 @@ public:
     void print_data(Args&&... data) {
         const char delimiter = ' ';
         std::cout << '\r';
-        (std::cout << ... << data)  << std::endl;
+        (std::cout << ... << data)  << "\r" << std::endl;
     }
     void print_data(const std::vector<std::string>& data);
     void load_history(std::string history_file);
