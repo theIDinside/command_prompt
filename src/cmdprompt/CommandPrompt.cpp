@@ -8,12 +8,8 @@
  *
  */
 
-#include <iostream>
-#include <cstring>
-#include <fstream>
-#include <sstream>
+
 #include "CommandPrompt.h"
-#include <algorithm>
 
 struct termios* CommandPrompt::g_original_term_settings = new struct termios;
 struct winsize* CommandPrompt::g_ws = new struct winsize;
@@ -83,28 +79,11 @@ void CommandPrompt::step_n_backward(CommandPrompt::usize n) {
         if(write(STDOUT_FILENO, s.c_str(), 4) != -1) {}
     }
 }
-
-void CommandPrompt::clear_line() {
-    std::string s{GOTO_COLUMN_N};
-    s.replace(2, 1, std::to_string(0));
-    s.append(CLEAR_REST_OF_LINE);
-    write(STDOUT_FILENO, s.c_str(), s.size());
-}
-
-void CommandPrompt::clear_input_from(usize n) {
-    std::string s{GOTO_COLUMN_N};
-    s.replace(2, 1, std::to_string(n));
-    s.append(CLEAR_REST_OF_LINE);
-    write(STDOUT_FILENO, s.c_str(), s.size());
-}
-
 void CommandPrompt::goto_column(CommandPrompt::usize n) {
     std::string s{GOTO_COLUMN_N};
     s.replace(2, 1, std::to_string(n));
     if(write(STDOUT_FILENO, s.c_str(), 4) != -1) {}
 }
-
-
 
 void CommandPrompt::register_validator(Validator&& v) {
     this->m_validator = std::move(v);
@@ -169,7 +148,7 @@ bool CommandPrompt::read_input() {
                             auto_fill();
                             break;
                         case 'B': // todo: scroll down through history list.-
-                            write_debug_file();
+                            m_completion_result = get_history_next();
                             break;
                         case 'C': // right
                             step_n_forward();
@@ -319,6 +298,11 @@ void CommandPrompt::register_completion_cb(Completer&& c) {
     this->m_completion_cb = std::move(c);
 }
 
+
+void CommandPrompt::register_parameter_completer_cb(Completer &&cb) {
+    this->m_parameter_completer_cb = std::move(cb);
+}
+
 std::optional<std::string> CommandPrompt::get_last_input() {
     return (m_history.empty() ? std::optional<std::string>{} : m_history[m_history.size()-1]);
 }
@@ -404,36 +388,6 @@ std::optional<std::string> CommandPrompt::get_history_next() {
         } else {
             m_history_item = {};
             return {};
-        }
-    }
-}
-
-std::optional<std::string> CompletionCallback::operator()(std::string s) {
-    if(current == s) {
-        // continue scrolling through commands
-        // using current_index
-        if(current_index < results.size()) {
-            auto res = results[current_index];
-            current_index++;
-            return (this->m_result = res);
-        } else {
-         current_index = 0;
-         return (this->m_result = {});
-        }
-    } else {
-        current = s;
-        current_index = 0;
-        results.clear();
-        std::copy_if(all_commands.begin(), all_commands.end(), std::back_inserter(results), [&](auto str) {
-            return std::equal(s.begin(), s.end(), str.begin());
-        });
-        if(!results.empty() && current_index < results.size()) {
-            auto res = results[current_index];
-            current_index++;
-            return (this->m_result = res);
-        } else {
-            current_index = 0;
-            return (this->m_result = {});
         }
     }
 }
