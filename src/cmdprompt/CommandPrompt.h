@@ -74,7 +74,9 @@ class CommandPrompt {
 public:
     using usize = std::size_t;
     CommandPrompt() = delete;
-    CommandPrompt(const CommandPrompt& prompt) : CommandPrompt(std::string{prompt.m_prompt}, prompt.m_save_history) {}
+    CommandPrompt(const CommandPrompt& prompt) : CommandPrompt(std::string{prompt.m_prompt}, prompt.m_save_history) {
+        m_history.emplace_back(" ");
+    }
     explicit CommandPrompt(std::string&& prompt, bool keep_history);
     ~CommandPrompt() {
         disable_rawmode();

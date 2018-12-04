@@ -15,6 +15,8 @@
 #include "CommandPrompt.h"
 #include <algorithm>
 
+#define CTRL_KEY(k) ((k) & 0x1f)
+
 struct termios* CommandPrompt::g_original_term_settings = new struct termios;
 struct winsize* CommandPrompt::g_ws = new struct winsize;
 
@@ -119,7 +121,7 @@ std::optional<std::string> CommandPrompt::get_input() {
         {
             return {};
         }
-        m_history.emplace_back(m_buffer);
+        m_history.push_back(m_buffer);
         std::copy(m_buffer.begin(), m_buffer.end(), std::back_inserter(result));
         m_buffer.clear();
         return result;
@@ -148,8 +150,19 @@ bool CommandPrompt::read_input() {
     if (ch == KeyCode::TAB) {
         m_completion_result = m_completion_cb(m_buffer);
         auto_fill();
+        return true;
     }
     switch (ch) {
+        case CTRL_KEY('w'):
+        case CTRL_KEY('h'): { // CTRL+Backspace
+            if(auto pos = m_buffer.find_last_of(' '); pos != std::string::npos) {
+                m_buffer.erase(pos);
+            } else {
+                m_buffer.clear();
+            }
+            auto_fill();
+            break;
+        }
         case KeyCode::ENTER:
             std::cout << std::endl;
             m_buffer = m_completion_result.value_or(m_buffer);
@@ -172,14 +185,18 @@ bool CommandPrompt::read_input() {
                             write_debug_file();
                             break;
                         case 'C': // right
+                            m_buffer = m_completion_result.value_or(m_buffer);
+                            m_completion_result = {};
                             step_n_forward();
                             break;
                         case 'D': // left
                             step_n_backward();
                             break;
                         case 'H': // home key
+                        {
                             goto_column(m_prompt_len + 1);
                             break;
+                        }
                         case 'F': // end key
                             goto_column(m_prompt_len + 1 + m_buffer.size());
                             break;
@@ -195,10 +212,22 @@ bool CommandPrompt::read_input() {
                     case 'F': /* end */
                         goto_column(m_prompt_len + 1 + m_buffer.size());
                         break;
-                    default:break;
+                    case 'W':
+                    {
+                        if(auto pos = m_buffer.find_last_of(' '); pos != std::string::npos) {
+                            if(sequence[1] == KeyCode::BACKSPACE) {
+                                m_buffer.erase(pos);
+                                auto_fill();
+                            } else {
+                                goto_column(m_prompt_len + 1);
+                            }
+                        }
+                        break;
+                    }
+                    default:
+                        break;
                 }
-            }
-            break;
+            } break;
         case KeyCode::BACKSPACE: {
             auto current_position = get_data_index();
             auto cursorpos = get_cursor_pos();
@@ -221,8 +250,7 @@ bool CommandPrompt::read_input() {
                 write(STDOUT_FILENO, write_buffer.c_str(), write_buffer.size());
             }
             return true;
-        }
-        default:
+        } default:
             // enter character into character buffer m_buffer
             m_buffer = m_completion_result.value_or(m_buffer);
             m_completion_result = {};
