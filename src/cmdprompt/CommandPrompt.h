@@ -2,16 +2,8 @@
 // Created by cx on 2018-11-18.
 //
 #pragma once
-#include <vector>
-#include <string>
-#include <termios.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <sys/ioctl.h>
-#include <memory>
-#include <zconf.h>
-#include <functional>
-#include <iostream>
+
+#include "heavy.h"
 
 enum KeyCode {
     CTRL_A = 1,
@@ -41,21 +33,8 @@ enum Error: int {
 using Validator = std::function<bool(std::string)>;
 using Completer = std::function<std::optional<std::string>(std::string)>;
 
-/*  This can be used as a completion callback, instead of using a lambda. I've removed the use of this struct for now though. If you use a lambda with register_completion_cb(...);
- *  you need to capture variables like for example commands, an index value and the lambda needs to be mutable, in order to store state, from call to call. Example exists in main.cpp*/
-struct CompletionCallback {
-    std::string current;
-    std::vector<std::string> all_commands;
-    std::vector<std::string> results;
-    std::optional<std::string> m_result;
-    std::size_t current_index = 0;
-    CompletionCallback() = default;
-    explicit CompletionCallback(std::vector<std::string> commands) : current{""}, all_commands(std::move(commands)), results{}, m_result{} {}
-    std::optional<std::string> operator()(std::string s);
-    bool has_value() {
-        return m_result.has_value();
-    }
-};
+template <typename CommandType>
+using ParamaterCompleter = std::function<std::optional<std::string>(CommandType, std::string)>;
 
 class CommandPrompt {
     static constexpr const char* HORIZONTAL_CURSOR_POS = "\x1b[6n";
@@ -85,12 +64,11 @@ public:
         delete g_original_term_settings;
         delete g_ws;
     }
-    void clear_line();                      // not yet in use
-    void clear_input_from(usize n=0);       // not yet in use
     std::optional<std::string> get_input();
     void register_validator(Validator&& v);
     void register_commands(const std::vector<std::string>& v);
     void register_completion_cb(Completer&& cb);
+    void register_parameter_completer_cb(Completer && cb);
     void set_save_history(std::string history_file_path);
     void unset_save_history() {
         m_save_history = false;
@@ -148,4 +126,5 @@ private: /*         private members       */
     std::optional<std::string> m_completion_result;
     Validator m_validator;
     Completer m_completion_cb;
+    Completer m_parameter_completer_cb;
 };
